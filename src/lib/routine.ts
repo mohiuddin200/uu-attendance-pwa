@@ -1,4 +1,5 @@
 import type { RoutineData, RoutineEntry, RoutineEntryRaw } from "../types";
+import { getCourseTitle } from "./course-titles";
 
 const ROUTINE_SCRIPT_ID = "uu-routine-data";
 const TIME_ZONE = "Asia/Dhaka";
@@ -43,9 +44,9 @@ export function loadRoutineData() {
   });
 }
 
-export function normalizeRoutineEntries(entries: RoutineEntryRaw[]) {
+export function normalizeRoutineEntries(entries: RoutineEntryRaw[]): RoutineEntry[] {
   return entries
-    .map((entry) => {
+    .map((entry): RoutineEntry | null => {
       const match = entry.batch.match(/^(\d+)\s+([A-Z])$/);
       if (!match) return null;
 
@@ -58,14 +59,15 @@ export function normalizeRoutineEntries(entries: RoutineEntryRaw[]) {
         start: entry.start,
         end: entry.end,
         course: entry.course,
+        courseTitle: getCourseTitle(entry.course),
         teacher: entry.teacher,
         room: entry.room || "Not assigned",
         mode: entry.mode,
         program: entry.program,
         slot: entry.slot,
-      } satisfies RoutineEntry;
+      };
     })
-    .filter((entry): entry is RoutineEntry => Boolean(entry));
+    .filter((entry): entry is RoutineEntry => entry !== null);
 }
 
 export function getDayName(date = new Date()) {

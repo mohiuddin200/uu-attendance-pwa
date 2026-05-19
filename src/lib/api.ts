@@ -25,6 +25,11 @@ export const api = {
       },
       Profile
     >("profiles:completeProfile"),
+    syncInitialCrRole: makeFunctionReference<
+      "mutation",
+      Record<string, never>,
+      Profile | null
+    >("profiles:syncInitialCrRole"),
     inviteCr: makeFunctionReference<
       "mutation",
       { email: string; batch: string; section: string },

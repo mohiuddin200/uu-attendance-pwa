@@ -110,6 +110,38 @@ export const current = query({
   },
 });
 
+export const syncInitialCrRole = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { userId, email } = await signedInUser(ctx);
+    const profile = await profileByUserId(ctx, userId);
+    if (!profile) {
+      return null;
+    }
+
+    if (profile.role === "cr" || !parseInitialCrEmails().includes(email)) {
+      return await ctx.db.get(profile._id);
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(profile._id, {
+      role: "cr",
+      promotedBy: userId,
+      updatedAt: now,
+    });
+
+    await ctx.db.insert("auditLogs", {
+      actorUserId: userId,
+      action: "cr.initial_synced",
+      target: email,
+      metadata: { batch: profile.batch, section: profile.section },
+      createdAt: now,
+    });
+
+    return await ctx.db.get(profile._id);
+  },
+});
+
 export const completeProfile = mutation({
   args: {
     fullName: v.string(),

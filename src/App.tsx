@@ -15,11 +15,13 @@ import {
   LogIn,
   LogOut,
   Mail,
+  Moon,
   Play,
   Plus,
   RefreshCw,
   ShieldCheck,
   Square,
+  Sun,
   Timer,
   User,
   UserPlus,
@@ -70,7 +72,10 @@ type SignupPayload = {
   section: string;
 };
 
+type ThemeMode = "light" | "dark";
+
 function App({ backendReady }: { backendReady: boolean }) {
+  const [theme, toggleTheme] = useThemeMode();
   const { routineData, loading, error } = useRoutineData();
   const entries = useMemo(
     () => normalizeRoutineEntries(routineData?.entries ?? []),
@@ -78,18 +83,37 @@ function App({ backendReady }: { backendReady: boolean }) {
   );
 
   if (!backendReady) {
-    return <SetupPreview entries={entries} loading={loading} error={error} />;
+    return (
+      <SetupPreview
+        entries={entries}
+        loading={loading}
+        error={error}
+        theme={theme}
+        onThemeToggle={toggleTheme}
+      />
+    );
   }
 
-  return <AuthenticatedApp entries={entries} routineLoading={loading} />;
+  return (
+    <AuthenticatedApp
+      entries={entries}
+      routineLoading={loading}
+      theme={theme}
+      onThemeToggle={toggleTheme}
+    />
+  );
 }
 
 function AuthenticatedApp({
   entries,
   routineLoading,
+  theme,
+  onThemeToggle,
 }: {
   entries: RoutineEntry[];
   routineLoading: boolean;
+  theme: ThemeMode;
+  onThemeToggle: () => void;
 }) {
   const auth = useConvexAuth();
   const { signIn, signOut } = useAuthActions();
@@ -146,6 +170,8 @@ function AuthenticatedApp({
         error={authError}
         onLogin={handlePasswordLogin}
         onSignup={handlePasswordSignup}
+        theme={theme}
+        onThemeToggle={onThemeToggle}
       />
     );
   }
@@ -155,12 +181,25 @@ function AuthenticatedApp({
   }
 
   if (!current?.isAllowedEmail) {
-    return <BlockedEmail current={current} onSignOut={signOut} />;
+    return (
+      <BlockedEmail
+        current={current}
+        onSignOut={signOut}
+        theme={theme}
+        onThemeToggle={onThemeToggle}
+      />
+    );
   }
 
   if (!current.profile) {
     return (
-      <Onboarding current={current} entries={entries} onSignOut={signOut} />
+      <Onboarding
+        current={current}
+        entries={entries}
+        onSignOut={signOut}
+        theme={theme}
+        onThemeToggle={onThemeToggle}
+      />
     );
   }
 
@@ -169,7 +208,12 @@ function AuthenticatedApp({
 
   return (
     <div className="app-shell">
-      <AppHeader profile={profile} onSignOut={signOut} />
+      <AppHeader
+        profile={profile}
+        onSignOut={signOut}
+        theme={theme}
+        onThemeToggle={onThemeToggle}
+      />
 
       <main className="workspace">
         {isCr ? (
@@ -343,6 +387,7 @@ function CrDashboard({
         batch: entry.batch,
         section: entry.section,
         course: entry.course,
+        courseTitle: entry.courseTitle,
         teacher: entry.teacher,
         room: entry.room,
         mode: entry.mode,
@@ -538,7 +583,11 @@ function ActiveAttendanceCard({
         </span>
         <span className="muted">Closes {formatTime(session.closesAt)}</span>
       </div>
-      <h2>{session.courseCode}</h2>
+      <CourseHeading
+        title={session.courseTitle}
+        code={session.courseCode}
+        as="h2"
+      />
       <ClassMeta session={session} />
       <div className="card-actions">
         <button
@@ -570,7 +619,7 @@ function RoutineOpenCard({
         <span className="status-pill neutral">{entry.mode}</span>
         <span className="muted">{entry.day}</span>
       </div>
-      <h3>{entry.course}</h3>
+      <CourseHeading title={entry.courseTitle} code={entry.course} as="h3" />
       <div className="meta-grid">
         <span>
           <Clock3 size={14} /> {entry.start} - {entry.end}
@@ -619,7 +668,11 @@ function SessionDetailsPanel({
       <div className="detail-header">
         <div>
           <p className="eyebrow">Selected</p>
-          <h3>{session.courseCode}</h3>
+          <CourseHeading
+            title={session.courseTitle}
+            code={session.courseCode}
+            as="h3"
+          />
         </div>
         <span className={`status-pill ${isOpen ? "open" : "closed"}`}>
           {isOpen ? <Clock3 size={14} /> : <Square size={14} />}
@@ -667,11 +720,7 @@ function ManualAddForm({
   details: SessionDetails | undefined;
   form: { fullName: string; email: string; reason: string };
   busy: boolean;
-  onChange: (form: {
-    fullName: string;
-    email: string;
-    reason: string;
-  }) => void;
+  onChange: (form: { fullName: string; email: string; reason: string }) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   if (!details) return null;
@@ -743,8 +792,11 @@ function SessionList({
             onClick={() => onSelect(session._id)}
           >
             <span>
-              <strong>{session.courseCode}</strong>
-              <small>{formatDateTime(session.openedAt)}</small>
+              <strong>{session.courseTitle ?? session.courseCode}</strong>
+              <small>
+                {session.courseTitle ? `${session.courseCode} · ` : ""}
+                {formatDateTime(session.openedAt)}
+              </small>
             </span>
             <span className={`dot ${active ? "live" : ""}`} />
           </button>
@@ -800,8 +852,9 @@ function RoutineList({
         <div key={entry.id} className="routine-row">
           <span className="time-badge">{entry.start}</span>
           <div>
-            <strong>{entry.course}</strong>
+            <strong>{entry.courseTitle ?? entry.course}</strong>
             <small>
+              {entry.courseTitle ? `${entry.course} · ` : ""}
               {entry.room} · {entry.teacher || "Teacher TBA"}
             </small>
           </div>
@@ -831,8 +884,13 @@ function RecentList({
             <CheckCircle2 size={13} />
           </span>
           <div>
-            <strong>{session?.courseCode ?? "Class"}</strong>
-            <small>{formatDateTime(record.submittedAt)}</small>
+            <strong>
+              {session?.courseTitle ?? session?.courseCode ?? "Class"}
+            </strong>
+            <small>
+              {session?.courseTitle ? `${session.courseCode} · ` : ""}
+              {formatDateTime(record.submittedAt)}
+            </small>
           </div>
         </div>
       ))}
@@ -849,8 +907,10 @@ function EmptyAttendance({ nextClass }: { nextClass?: RoutineEntry }) {
       <h2>No active attendance</h2>
       {nextClass ? (
         <p>
-          Next class: <strong>{nextClass.course}</strong>, {nextClass.start} -{" "}
-          {nextClass.end}, {nextClass.room}.
+          Next class:{" "}
+          <strong>{nextClass.courseTitle ?? nextClass.course}</strong>
+          {nextClass.courseTitle ? ` (${nextClass.course})` : ""},{" "}
+          {nextClass.start} - {nextClass.end}, {nextClass.room}.
         </p>
       ) : (
         <p>No remaining routine class is scheduled for today.</p>
@@ -863,10 +923,14 @@ function Onboarding({
   current,
   entries,
   onSignOut,
+  theme,
+  onThemeToggle,
 }: {
   current: CurrentUserResult;
   entries: RoutineEntry[];
   onSignOut: () => Promise<void>;
+  theme: ThemeMode;
+  onThemeToggle: () => void;
 }) {
   const completeProfile = useMutation(api.profiles.completeProfile);
   const batches = uniqueBatches(entries);
@@ -900,8 +964,11 @@ function Onboarding({
   return (
     <div className="auth-shell">
       <div className="auth-panel wide">
-        <div className="brand-mark">
-          <CalendarCheck size={28} />
+        <div className="auth-panel-top">
+          <div className="brand-mark">
+            <CalendarCheck size={28} />
+          </div>
+          <ThemeToggle theme={theme} onToggle={onThemeToggle} />
         </div>
         <h1>Complete Profile</h1>
         <p className="lead">{current.email}</p>
@@ -964,11 +1031,15 @@ function SignInScreen({
   error,
   onLogin,
   onSignup,
+  theme,
+  onThemeToggle,
 }: {
   entries: RoutineEntry[];
   error: string;
   onLogin: (payload: LoginPayload) => Promise<void>;
   onSignup: (payload: SignupPayload) => Promise<void>;
+  theme: ThemeMode;
+  onThemeToggle: () => void;
 }) {
   const batches = uniqueBatches(entries);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
@@ -1022,8 +1093,11 @@ function SignInScreen({
     <div className="auth-shell">
       <div className="auth-panel auth-card">
         <div className="auth-header">
-          <div className="brand-mark">
-            <CalendarCheck size={26} />
+          <div className="auth-topline">
+            <div className="brand-mark">
+              <CalendarCheck size={26} />
+            </div>
+            <ThemeToggle theme={theme} onToggle={onThemeToggle} />
           </div>
           <div className="auth-heading">
             <h1>UU Attendance</h1>
@@ -1227,15 +1301,22 @@ function SignInScreen({
 function BlockedEmail({
   current,
   onSignOut,
+  theme,
+  onThemeToggle,
 }: {
   current: CurrentUserResult | null;
   onSignOut: () => Promise<void>;
+  theme: ThemeMode;
+  onThemeToggle: () => void;
 }) {
   return (
     <div className="auth-shell">
       <div className="auth-panel">
-        <div className="brand-mark danger">
-          <AlertCircle size={28} />
+        <div className="auth-panel-top">
+          <div className="brand-mark danger">
+            <AlertCircle size={28} />
+          </div>
+          <ThemeToggle theme={theme} onToggle={onThemeToggle} />
         </div>
         <h1>Access Blocked</h1>
         <p className="lead">
@@ -1257,10 +1338,14 @@ function SetupPreview({
   entries,
   loading,
   error,
+  theme,
+  onThemeToggle,
 }: {
   entries: RoutineEntry[];
   loading: boolean;
   error: string;
+  theme: ThemeMode;
+  onThemeToggle: () => void;
 }) {
   const sections = [
     ...new Set(entries.map((entry) => entry.batchLabel)),
@@ -1269,8 +1354,11 @@ function SetupPreview({
   return (
     <div className="auth-shell setup">
       <div className="auth-panel wide">
-        <div className="brand-mark">
-          <CalendarCheck size={28} />
+        <div className="auth-panel-top">
+          <div className="brand-mark">
+            <CalendarCheck size={28} />
+          </div>
+          <ThemeToggle theme={theme} onToggle={onThemeToggle} />
         </div>
         <h1>UU Attendance</h1>
         <p className="lead">Convex is not connected yet.</p>
@@ -1298,9 +1386,13 @@ function SetupPreview({
 function AppHeader({
   profile,
   onSignOut,
+  theme,
+  onThemeToggle,
 }: {
   profile: Profile;
   onSignOut: () => Promise<void>;
+  theme: ThemeMode;
+  onThemeToggle: () => void;
 }) {
   return (
     <header className="app-header">
@@ -1315,22 +1407,50 @@ function AppHeader({
           </span>
         </div>
       </div>
-      <div className="profile-chip">
-        <span>{initials(profile.fullName)}</span>
-        <div>
-          <strong>{profile.fullName}</strong>
-          <small>{profile.role === "cr" ? "CR" : "Student"}</small>
+      <div className="header-actions">
+        <ThemeToggle theme={theme} onToggle={onThemeToggle} />
+        <div className="profile-chip">
+          <span>{initials(profile.fullName)}</span>
+          <div>
+            <strong>{profile.fullName}</strong>
+            <small>{profile.role === "cr" ? "CR" : "Student"}</small>
+          </div>
+          <button
+            className="icon-button"
+            type="button"
+            onClick={onSignOut}
+            title="Sign out"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
-        <button
-          className="icon-button"
-          type="button"
-          onClick={onSignOut}
-          title="Sign out"
-        >
-          <LogOut size={16} />
-        </button>
       </div>
     </header>
+  );
+}
+
+function CourseHeading({
+  title,
+  code,
+  as,
+}: {
+  title?: string;
+  code: string;
+  as: "h2" | "h3";
+}) {
+  const Tag = as;
+  if (!title) {
+    return (
+      <div className="course-heading">
+        <Tag>{code}</Tag>
+      </div>
+    );
+  }
+  return (
+    <div className="course-heading">
+      <Tag>{title}</Tag>
+      <span className="course-code">{code}</span>
+    </div>
   );
 }
 
@@ -1405,6 +1525,29 @@ function RosterSummary({ roster }: { roster: Profile[] | undefined }) {
   );
 }
 
+function ThemeToggle({
+  theme,
+  onToggle,
+}: {
+  theme: ThemeMode;
+  onToggle: () => void;
+}) {
+  const isDark = theme === "dark";
+  const label = isDark ? "Switch to light mode" : "Switch to dark mode";
+
+  return (
+    <button
+      className="icon-button theme-toggle"
+      type="button"
+      onClick={onToggle}
+      title={label}
+      aria-label={label}
+    >
+      {isDark ? <Sun size={16} /> : <Moon size={16} />}
+    </button>
+  );
+}
+
 function InlineNotice({ text }: { text: string }) {
   return (
     <div className="notice">
@@ -1429,6 +1572,35 @@ function FullPageStatus({ label }: { label: string }) {
       </p>
     </div>
   );
+}
+
+function useThemeMode() {
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") {
+      return "light";
+    }
+
+    const stored = window.localStorage.getItem("uu-attendance-theme");
+    if (stored === "light" || stored === "dark") {
+      return stored;
+    }
+
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem("uu-attendance-theme", theme);
+  }, [theme]);
+
+  function toggleTheme() {
+    setTheme((current) => (current === "dark" ? "light" : "dark"));
+  }
+
+  return [theme, toggleTheme] as const;
 }
 
 function useRoutineData() {

@@ -63,6 +63,7 @@ export interface RoutineEntry {
   start: string;
   end: string;
   course: string;
+  courseTitle?: string;
   teacher: string;
   room: string;
   mode: string;

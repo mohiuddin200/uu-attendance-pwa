@@ -27,8 +27,10 @@ import {
   UserPlus,
   Users,
   Wifi,
+  X,
 } from "lucide-react";
 import {
+  type CSSProperties,
   type FormEvent,
   type ReactNode,
   useEffect,
@@ -40,6 +42,8 @@ import { api } from "./lib/api";
 import { downloadAttendancePdf } from "./lib/pdf";
 import {
   formatDateTime,
+  formatClockRange,
+  formatClockTime,
   formatTime,
   getDayName,
   getNextClass,
@@ -73,6 +77,13 @@ type SignupPayload = {
 };
 
 type ThemeMode = "light" | "dark";
+type ToastKind = "success" | "error" | "info";
+type ToastState = {
+  id: number;
+  kind: ToastKind;
+  title: string;
+  message?: string;
+};
 
 function App({ backendReady }: { backendReady: boolean }) {
   const [theme, toggleTheme] = useThemeMode();
@@ -247,6 +258,8 @@ function AuthenticatedApp({
   );
 }
 
+type StudentView = "attend" | "today" | "recent";
+
 function StudentDashboard({
   profile,
   entries,
@@ -259,7 +272,8 @@ function StudentDashboard({
   const recentRecords = useQuery(api.attendance.myRecentRecords, { limit: 6 });
   const submitAttendance = useMutation(api.attendance.submit);
   const [pendingSession, setPendingSession] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [view, setView] = useState<StudentView>("attend");
   const todayRoutine = getTodayRoutine(entries, profile.batch, profile.section);
   const nextClass = getNextClass(entries, profile.batch, profile.section);
   const active = (activeSessions ?? []).filter(
@@ -271,69 +285,106 @@ function StudentDashboard({
 
   async function handleSubmit(sessionId: string) {
     setPendingSession(sessionId);
-    setMessage("");
+    setToast(null);
     try {
       await submitAttendance({ sessionId });
-      setMessage("Attendance submitted.");
+      setToast(
+        createToast(
+          "success",
+          "Attendance submitted",
+          "Your presence was saved for this class.",
+        ),
+      );
     } catch (error) {
-      setMessage(errorMessage(error));
+      setToast(createErrorToast(error, "Could not submit attendance"));
     } finally {
       setPendingSession(null);
     }
   }
 
   return (
-    <div className="student-layout">
-      <section className="section-main">
-        <SectionTitle
-          icon={<CalendarCheck size={18} />}
-          title="Attendance"
-          subtitle={`Batch ${profile.batch}, Section ${profile.section}`}
-        />
+    <>
+      <div className="student-layout" data-active-tab={view}>
+        <section
+          className={`section-main tab-panel ${view === "attend" ? "is-active" : ""}`}
+        >
+          <SectionTitle
+            icon={<CalendarCheck size={18} />}
+            title="Attendance"
+            subtitle={`Batch ${profile.batch}, Section ${profile.section}`}
+          />
 
-        {activeSessions === undefined ? (
-          <PanelStatus label="Checking active attendance" />
-        ) : active.length > 0 ? (
-          <div className="stack">
-            {active.map((session) => (
-              <ActiveAttendanceCard
-                key={session._id}
-                session={session}
-                now={now}
-                submitted={submittedSessionIds.has(session._id)}
-                pending={pendingSession === session._id}
-                onSubmit={() => handleSubmit(session._id)}
-              />
-            ))}
+          {activeSessions === undefined ? (
+            <PanelStatus label="Checking active attendance" />
+          ) : active.length > 0 ? (
+            <div className="stack">
+              {active.map((session) => (
+                <ActiveAttendanceCard
+                  key={session._id}
+                  session={session}
+                  now={now}
+                  submitted={submittedSessionIds.has(session._id)}
+                  pending={pendingSession === session._id}
+                  onSubmit={() => handleSubmit(session._id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyAttendance nextClass={nextClass} />
+          )}
+
+        </section>
+
+        <aside className="side-panel">
+          <div className={`tab-panel ${view === "today" ? "is-active" : ""}`}>
+            <SectionTitle
+              icon={<BookOpen size={18} />}
+              title="Today"
+              subtitle={getDayName()}
+            />
+            <RoutineList
+              entries={todayRoutine}
+              emptyText="No routine classes today."
+            />
           </div>
-        ) : (
-          <EmptyAttendance nextClass={nextClass} />
-        )}
 
-        {message ? <InlineNotice text={message} /> : null}
-      </section>
+          <div className={`tab-panel ${view === "recent" ? "is-active" : ""}`}>
+            <SectionTitle
+              icon={<FileText size={18} />}
+              title="Recent"
+              subtitle="Your submissions"
+            />
+            <RecentList records={recentRecords} />
+          </div>
+        </aside>
+      </div>
 
-      <aside className="side-panel">
-        <SectionTitle
-          icon={<BookOpen size={18} />}
-          title="Today"
-          subtitle={getDayName()}
-        />
-        <RoutineList
-          entries={todayRoutine}
-          emptyText="No routine classes today."
-        />
+      <AppToast toast={toast} onDismiss={() => setToast(null)} />
 
-        <SectionTitle
-          icon={<FileText size={18} />}
-          title="Recent"
-          subtitle="Your submissions"
-        />
-        <RecentList records={recentRecords} />
-      </aside>
-    </div>
+      <BottomNav<StudentView>
+        active={view}
+        onChange={setView}
+        tabs={[
+          { id: "attend", label: "Attend", icon: <CalendarCheck size={20} /> },
+          { id: "today", label: "Today", icon: <BookOpen size={20} /> },
+          { id: "recent", label: "Recent", icon: <FileText size={20} /> },
+        ]}
+      />
+    </>
   );
 }
+
+type CrView = "routine" | "sessions" | "people";
+
+const WEEK_ORDER: string[] = [
+  "Saturday",
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+];
 
 function CrDashboard({
   profile,
@@ -343,17 +394,44 @@ function CrDashboard({
   entries: RoutineEntry[];
 }) {
   const now = useNow();
-  const todayRoutine = getTodayRoutine(entries, profile.batch, profile.section);
-  const sectionRoutine = entries
-    .filter(
-      (entry) =>
-        entry.batch === profile.batch && entry.section === profile.section,
-    )
-    .sort(
-      (a, b) => a.day.localeCompare(b.day) || a.start.localeCompare(b.start),
-    );
-  const routineForOpening =
-    todayRoutine.length > 0 ? todayRoutine : sectionRoutine.slice(0, 10);
+  const todayName = getDayName();
+  const sectionRoutine = useMemo(
+    () =>
+      entries
+        .filter(
+          (entry) =>
+            entry.batch === profile.batch && entry.section === profile.section,
+        )
+        .sort(
+          (a, b) =>
+            WEEK_ORDER.indexOf(a.day) - WEEK_ORDER.indexOf(b.day) ||
+            a.start.localeCompare(b.start),
+        ),
+    [entries, profile.batch, profile.section],
+  );
+  const availableDays = useMemo(
+    () => WEEK_ORDER.filter((day) => sectionRoutine.some((e) => e.day === day)),
+    [sectionRoutine],
+  );
+  const [explicitDay, setExplicitDay] = useState<string | null>(null);
+  const dayFilter: string =
+    explicitDay ??
+    (availableDays.includes(todayName)
+      ? todayName
+      : (availableDays[0] ?? "all"));
+  const routineForOpening = useMemo(
+    () =>
+      dayFilter === "all"
+        ? sectionRoutine
+        : sectionRoutine.filter((e) => e.day === dayFilter),
+    [sectionRoutine, dayFilter],
+  );
+  const routineTitle =
+    dayFilter === "all"
+      ? "Section Routine"
+      : dayFilter === todayName
+        ? "Today's Routine"
+        : `${dayFilter} Routine`;
   const sessions = useQuery(api.attendance.sessionsForCr, { limit: 12 });
   const roster = useQuery(api.profiles.listSectionPeople, {});
   const openSession = useMutation(api.attendance.openSession);
@@ -365,8 +443,9 @@ function CrDashboard({
     null,
   );
   const [busy, setBusy] = useState("");
-  const [notice, setNotice] = useState("");
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [view, setView] = useState<CrView>("routine");
   const [manualForm, setManualForm] = useState({
     fullName: "",
     email: "",
@@ -380,7 +459,7 @@ function CrDashboard({
 
   async function handleOpen(entry: RoutineEntry) {
     setBusy(entry.id);
-    setNotice("");
+    setToast(null);
     try {
       const routine = {
         id: entry.id,
@@ -398,9 +477,15 @@ function CrDashboard({
       };
       const session = await openSession({ routine, durationMinutes });
       setSelectedSessionId(session._id);
-      setNotice("Attendance opened.");
+      setToast(
+        createToast(
+          "success",
+          "Attendance opened",
+          `${entry.course} is open for ${durationMinutes} minutes.`,
+        ),
+      );
     } catch (error) {
-      setNotice(errorMessage(error));
+      setToast(createErrorToast(error, "Could not open attendance"));
     } finally {
       setBusy("");
     }
@@ -408,12 +493,12 @@ function CrDashboard({
 
   async function handleClose(sessionId: string) {
     setBusy(sessionId);
-    setNotice("");
+    setToast(null);
     try {
       await closeSession({ sessionId });
-      setNotice("Attendance closed.");
+      setToast(createToast("success", "Attendance closed"));
     } catch (error) {
-      setNotice(errorMessage(error));
+      setToast(createErrorToast(error, "Could not close attendance"));
     } finally {
       setBusy("");
     }
@@ -422,7 +507,7 @@ function CrDashboard({
   async function handleInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy("invite");
-    setNotice("");
+    setToast(null);
     try {
       await inviteCr({
         email: inviteEmail,
@@ -430,9 +515,9 @@ function CrDashboard({
         section: profile.section,
       });
       setInviteEmail("");
-      setNotice("CR invite saved.");
+      setToast(createToast("success", "CR invite saved"));
     } catch (error) {
-      setNotice(errorMessage(error));
+      setToast(createErrorToast(error, "Could not invite CR"));
     } finally {
       setBusy("");
     }
@@ -443,120 +528,167 @@ function CrDashboard({
     if (!details?.session) return;
 
     setBusy("manual");
-    setNotice("");
+    setToast(null);
     try {
       await manualMarkPresent({
         sessionId: details.session._id,
         ...manualForm,
       });
       setManualForm({ fullName: "", email: "", reason: "" });
-      setNotice("Manual attendance added.");
+      setToast(createToast("success", "Manual attendance added"));
     } catch (error) {
-      setNotice(errorMessage(error));
+      setToast(createErrorToast(error, "Could not add attendance"));
     } finally {
       setBusy("");
     }
   }
 
   return (
-    <div className="cr-layout">
-      <section className="section-main">
-        <div className="section-heading-row">
-          <SectionTitle
-            icon={<BookOpen size={18} />}
-            title={
-              todayRoutine.length > 0 ? "Today's Routine" : "Section Routine"
-            }
-            subtitle={`Batch ${profile.batch}, Section ${profile.section}`}
-          />
-          <label className="duration-control">
-            <Timer size={16} />
-            <span>Open for</span>
-            <select
-              value={durationMinutes}
-              onChange={(event) =>
-                setDurationMinutes(Number(event.target.value))
-              }
-            >
-              <option value={5}>5 min</option>
-              <option value={10}>10 min</option>
-              <option value={15}>15 min</option>
-              <option value={20}>20 min</option>
-              <option value={30}>30 min</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="class-grid">
-          {routineForOpening.map((entry) => (
-            <RoutineOpenCard
-              key={entry.id}
-              entry={entry}
-              busy={busy === entry.id}
-              onOpen={() => handleOpen(entry)}
+    <>
+      <div className="cr-layout" data-active-tab={view}>
+        <section
+          className={`section-main tab-panel ${view === "routine" ? "is-active" : ""}`}
+        >
+          <div className="section-heading-row">
+            <SectionTitle
+              icon={<BookOpen size={18} />}
+              title={routineTitle}
+              subtitle={`Batch ${profile.batch}, Section ${profile.section}`}
             />
-          ))}
-        </div>
-
-        {notice ? <InlineNotice text={notice} /> : null}
-      </section>
-
-      <aside className="side-panel cr-side">
-        <SectionTitle
-          icon={<ShieldCheck size={18} />}
-          title="Sessions"
-          subtitle={`${sessions?.length ?? 0} recent`}
-        />
-        <SessionList
-          sessions={sessions}
-          selectedSessionId={activeSessionId}
-          now={now}
-          onSelect={setSelectedSessionId}
-        />
-
-        <SessionDetailsPanel
-          details={details}
-          now={now}
-          busy={busy}
-          onClose={handleClose}
-          onDownload={() => details && downloadAttendancePdf(details)}
-        />
-
-        <ManualAddForm
-          details={details}
-          form={manualForm}
-          busy={busy === "manual"}
-          onChange={setManualForm}
-          onSubmit={handleManualAdd}
-        />
-
-        <form className="compact-form" onSubmit={handleInvite}>
-          <SectionTitle
-            icon={<UserPlus size={18} />}
-            title="Invite CR"
-            subtitle="Same section only"
-          />
-          <div className="form-row single">
-            <input
-              type="email"
-              placeholder="email@uttara.ac.bd"
-              value={inviteEmail}
-              onChange={(event) => setInviteEmail(event.target.value)}
-              required
-            />
-            <button
-              className="icon-button"
-              disabled={busy === "invite"}
-              type="submit"
-            >
-              <Plus size={16} />
-            </button>
+            <div className="routine-controls">
+              <label className="duration-control">
+                <BookOpen size={16} />
+                <span>Day</span>
+                <select
+                  value={dayFilter}
+                  onChange={(event) => setExplicitDay(event.target.value)}
+                >
+                  <option value="all">All days</option>
+                  {availableDays.map((day) => (
+                    <option key={day} value={day}>
+                      {day === todayName ? `${day} (Today)` : day}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="duration-control">
+                <Timer size={16} />
+                <span>Open for</span>
+                <select
+                  value={durationMinutes}
+                  onChange={(event) =>
+                    setDurationMinutes(Number(event.target.value))
+                  }
+                >
+                  <option value={5}>5 min</option>
+                  <option value={10}>10 min</option>
+                  <option value={15}>15 min</option>
+                  <option value={20}>20 min</option>
+                  <option value={30}>30 min</option>
+                </select>
+              </label>
+            </div>
           </div>
-        </form>
 
-        <RosterSummary roster={roster} />
-      </aside>
-    </div>
+          {routineForOpening.length === 0 ? (
+            <p className="muted-block">
+              No classes scheduled
+              {dayFilter !== "all" ? ` for ${dayFilter}` : ""}.
+            </p>
+          ) : null}
+
+          <div className="class-grid">
+            {routineForOpening.map((entry) => (
+              <RoutineOpenCard
+                key={entry.id}
+                entry={entry}
+                busy={busy === entry.id}
+                onOpen={() => handleOpen(entry)}
+              />
+            ))}
+          </div>
+
+        </section>
+
+        <aside className="side-panel cr-side">
+          <div
+            className={`tab-panel ${view === "sessions" ? "is-active" : ""}`}
+          >
+            <SectionTitle
+              icon={<ShieldCheck size={18} />}
+              title="Sessions"
+              subtitle={`${sessions?.length ?? 0} recent`}
+            />
+            <SessionList
+              sessions={sessions}
+              selectedSessionId={activeSessionId}
+              now={now}
+              onSelect={setSelectedSessionId}
+            />
+
+            <SessionDetailsPanel
+              details={details}
+              now={now}
+              busy={busy}
+              onClose={handleClose}
+              onDownload={() => details && downloadAttendancePdf(details)}
+            />
+
+            <ManualAddForm
+              details={details}
+              form={manualForm}
+              busy={busy === "manual"}
+              onChange={setManualForm}
+              onSubmit={handleManualAdd}
+            />
+          </div>
+
+          <div className={`tab-panel ${view === "people" ? "is-active" : ""}`}>
+            <form className="compact-form" onSubmit={handleInvite}>
+              <SectionTitle
+                icon={<UserPlus size={18} />}
+                title="Invite CR"
+                subtitle="Same section only"
+              />
+              <div className="form-row single">
+                <input
+                  type="email"
+                  placeholder="email@uttara.ac.bd"
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  required
+                />
+                <button
+                  className="icon-button"
+                  disabled={busy === "invite"}
+                  type="submit"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+            </form>
+
+            <RosterSummary roster={roster} />
+          </div>
+        </aside>
+      </div>
+
+      <AppToast toast={toast} onDismiss={() => setToast(null)} />
+
+      <BottomNav<CrView>
+        active={view}
+        onChange={setView}
+        tabs={[
+          { id: "routine", label: "Routine", icon: <BookOpen size={20} /> },
+          {
+            id: "sessions",
+            label: "Sessions",
+            icon: <ShieldCheck size={20} />,
+          },
+          { id: "people", label: "People", icon: <Users size={20} /> },
+        ]}
+      />
+    </>
   );
 }
 
@@ -622,7 +754,7 @@ function RoutineOpenCard({
       <CourseHeading title={entry.courseTitle} code={entry.course} as="h3" />
       <div className="meta-grid">
         <span>
-          <Clock3 size={14} /> {entry.start} - {entry.end}
+          <Clock3 size={14} /> {formatClockRange(entry.start, entry.end)}
         </span>
         <span>
           <Building2 size={14} /> {entry.room}
@@ -850,7 +982,7 @@ function RoutineList({
     <div className="routine-list">
       {entries.map((entry) => (
         <div key={entry.id} className="routine-row">
-          <span className="time-badge">{entry.start}</span>
+          <span className="time-badge">{formatClockTime(entry.start)}</span>
           <div>
             <strong>{entry.courseTitle ?? entry.course}</strong>
             <small>
@@ -910,7 +1042,7 @@ function EmptyAttendance({ nextClass }: { nextClass?: RoutineEntry }) {
           Next class:{" "}
           <strong>{nextClass.courseTitle ?? nextClass.course}</strong>
           {nextClass.courseTitle ? ` (${nextClass.course})` : ""},{" "}
-          {nextClass.start} - {nextClass.end}, {nextClass.room}.
+          {formatClockRange(nextClass.start, nextClass.end)}, {nextClass.room}.
         </p>
       ) : (
         <p>No remaining routine class is scheduled for today.</p>
@@ -1394,24 +1526,55 @@ function AppHeader({
   theme: ThemeMode;
   onThemeToggle: () => void;
 }) {
+  const [showName, setShowName] = useState(false);
+
+  useEffect(() => {
+    if (!showName) return;
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest(".profile-badge")) return;
+      setShowName(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowName(false);
+    };
+    window.addEventListener("pointerdown", onPointer);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onPointer);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [showName]);
+
   return (
     <header className="app-header">
       <div className="app-title">
         <div className="brand-mark small">
           <CalendarCheck size={20} />
         </div>
-        <div>
-          <strong>UU Attendance</strong>
-          <span>
-            Batch {profile.batch}, Section {profile.section}
-          </span>
-        </div>
+        <strong>UU Attendance</strong>
       </div>
       <div className="header-actions">
         <ThemeToggle theme={theme} onToggle={onThemeToggle} />
         <div className="profile-chip">
-          <span>{initials(profile.fullName)}</span>
-          <div>
+          <div className="profile-badge">
+            <button
+              type="button"
+              className="profile-avatar"
+              aria-label={`Profile: ${profile.fullName}`}
+              aria-expanded={showName}
+              onClick={() => setShowName((value) => !value)}
+            >
+              {initials(profile.fullName)}
+            </button>
+            {showName ? (
+              <div className="profile-tooltip" role="tooltip">
+                <strong>{profile.fullName}</strong>
+                <small>{profile.role === "cr" ? "CR" : "Student"}</small>
+              </div>
+            ) : null}
+          </div>
+          <div className="chip-text">
             <strong>{profile.fullName}</strong>
             <small>{profile.role === "cr" ? "CR" : "Student"}</small>
           </div>
@@ -1420,12 +1583,44 @@ function AppHeader({
             type="button"
             onClick={onSignOut}
             title="Sign out"
+            aria-label="Sign out"
           >
             <LogOut size={16} />
           </button>
         </div>
       </div>
     </header>
+  );
+}
+
+function BottomNav<T extends string>({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: ReadonlyArray<{ id: T; label: string; icon: ReactNode }>;
+  active: T;
+  onChange: (id: T) => void;
+}) {
+  return (
+    <nav
+      className="bottom-nav"
+      aria-label="Section navigation"
+      style={{ "--nav-count": tabs.length } as CSSProperties}
+    >
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          className={tab.id === active ? "active" : ""}
+          aria-current={tab.id === active ? "page" : undefined}
+          onClick={() => onChange(tab.id)}
+        >
+          {tab.icon}
+          <span>{tab.label}</span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -1458,7 +1653,8 @@ function ClassMeta({ session }: { session: AttendanceSession }) {
   return (
     <div className="meta-grid">
       <span>
-        <Clock3 size={14} /> {session.classStart} - {session.classEnd}
+        <Clock3 size={14} />{" "}
+        {formatClockRange(session.classStart, session.classEnd)}
       </span>
       <span>
         <Building2 size={14} /> {session.room || "Not assigned"}
@@ -1545,6 +1741,61 @@ function ThemeToggle({
     >
       {isDark ? <Sun size={16} /> : <Moon size={16} />}
     </button>
+  );
+}
+
+function AppToast({
+  toast,
+  onDismiss,
+}: {
+  toast: ToastState | null;
+  onDismiss: () => void;
+}) {
+  useEffect(() => {
+    if (!toast) return;
+
+    const timeout = window.setTimeout(
+      onDismiss,
+      toast.kind === "error" ? 6500 : 3600,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [toast, onDismiss]);
+
+  if (!toast) return null;
+
+  const icon =
+    toast.kind === "success" ? (
+      <CheckCircle2 size={18} />
+    ) : (
+      <AlertCircle size={18} />
+    );
+
+  return (
+    <div
+      className="toast-region"
+      aria-live={toast.kind === "error" ? "assertive" : "polite"}
+      aria-atomic="true"
+    >
+      <div
+        key={toast.id}
+        className={`app-toast ${toast.kind}`}
+        role={toast.kind === "error" ? "alert" : "status"}
+      >
+        <span className="toast-icon">{icon}</span>
+        <div>
+          <strong>{toast.title}</strong>
+          {toast.message ? <p>{toast.message}</p> : null}
+        </div>
+        <button
+          className="toast-close"
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss notification"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1651,9 +1902,64 @@ function initials(name: string) {
   );
 }
 
+function createToast(
+  kind: ToastKind,
+  title: string,
+  message?: string,
+): ToastState {
+  return {
+    id: Date.now() + Math.random(),
+    kind,
+    title,
+    message,
+  };
+}
+
+function createErrorToast(error: unknown, fallbackTitle: string): ToastState {
+  const message = errorMessage(error);
+
+  if (/attendance session is already open/i.test(message)) {
+    return createToast(
+      "error",
+      "Attendance already open",
+      "Close the current open session before starting a new one.",
+    );
+  }
+
+  return createToast("error", fallbackTitle, message);
+}
+
 function errorMessage(error: unknown) {
-  if (error instanceof Error) return error.message;
-  return String(error);
+  const raw = error instanceof Error ? error.message : String(error);
+  return cleanErrorMessage(raw);
+}
+
+function cleanErrorMessage(raw: string) {
+  let message = raw.replace(/\s+/g, " ").trim();
+  const uncaught = message.match(
+    /Uncaught Error:\s*(.*?)(?:\s+at\s+\w+|\s+Called by client|$)/,
+  );
+
+  if (uncaught?.[1]) {
+    message = uncaught[1];
+  } else {
+    const serverError = message.match(
+      /Server Error\s*(.*?)(?:\s+Called by client|$)/,
+    );
+    if (serverError?.[1]) {
+      message = serverError[1];
+    }
+  }
+
+  message = message
+    .replace(/^\[CONVEX[^\]]+\]\s*/, "")
+    .replace(/^\[Request ID:[^\]]+\]\s*/, "")
+    .replace(/^Server Error\s*/, "")
+    .replace(/^Uncaught Error:\s*/, "")
+    .replace(/^Error:\s*/, "")
+    .trim();
+
+  return message || "Something went wrong. Please try again.";
 }
 
 export default App;

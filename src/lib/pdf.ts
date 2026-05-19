@@ -2,7 +2,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import logoUrl from "../assets/uu-logo.png";
 import type { SessionDetails } from "../types";
-import { formatDateTime } from "./routine";
+import { formatClockRange, formatDateTime } from "./routine";
 
 const BRAND = {
   primary: [15, 118, 110] as [number, number, number],
@@ -55,15 +55,12 @@ export async function downloadAttendancePdf(details: SessionDetails) {
   autoTable(doc, {
     startY: metaBottom + 14,
     margin: { left: margin, right: margin },
-    head: [["#", "Student ID", "Name", "Email", "Source", "Submitted"]],
+    head: [["#", "Student ID", "Name", "Email", "Submitted"]],
     body: records.map((record, index) => [
       String(index + 1),
       record.studentId,
       record.fullName,
       record.email,
-      record.source === "manual"
-        ? `Manual${record.reason ? ` — ${record.reason}` : ""}`
-        : "Student",
       formatDateTime(record.submittedAt),
     ]),
     styles: {
@@ -92,8 +89,7 @@ export async function downloadAttendancePdf(details: SessionDetails) {
       1: { cellWidth: 28 },
       2: { cellWidth: 42 },
       3: { cellWidth: 50 },
-      4: { cellWidth: 28 },
-      5: { cellWidth: "auto" },
+      4: { cellWidth: "auto" },
     },
     didDrawPage: () => {
       drawFooter(doc, pageWidth, pageHeight, margin);
@@ -234,7 +230,7 @@ function drawMetaBlock(
   drawMetaRow(
     doc,
     "Class",
-    `${session.day}, ${session.classStart} - ${session.classEnd}`,
+    `${session.day}, ${formatClockRange(session.classStart, session.classEnd)}`,
     leftX,
     rowY + rowGap,
     colWidth,

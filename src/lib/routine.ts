@@ -44,7 +44,9 @@ export function loadRoutineData() {
   });
 }
 
-export function normalizeRoutineEntries(entries: RoutineEntryRaw[]): RoutineEntry[] {
+export function normalizeRoutineEntries(
+  entries: RoutineEntryRaw[],
+): RoutineEntry[] {
   return entries
     .map((entry): RoutineEntry | null => {
       const match = entry.batch.match(/^(\d+)\s+([A-Z])$/);
@@ -96,6 +98,19 @@ export function formatTime(timestamp: number) {
 export function minutesFromTime(value: string) {
   const [hours, minutes] = value.split(":").map(Number);
   return hours * 60 + minutes;
+}
+
+export function formatClockTime(value: string) {
+  const [hoursRaw, minutes] = value.split(":");
+  const hours = Number(hoursRaw);
+  if (Number.isNaN(hours)) return value;
+  const period = hours >= 12 ? "PM" : "AM";
+  const display = hours % 12 || 12;
+  return `${display}:${minutes ?? "00"} ${period}`;
+}
+
+export function formatClockRange(start: string, end: string) {
+  return `${formatClockTime(start)} - ${formatClockTime(end)}`;
 }
 
 export function getCurrentDhakaMinutes(date = new Date()) {

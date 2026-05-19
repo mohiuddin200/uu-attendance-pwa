@@ -1,4 +1,4 @@
-import { makeFunctionReference } from 'convex/server'
+import { makeFunctionReference } from "convex/server";
 import type {
   AttendanceRecord,
   AttendanceSession,
@@ -7,79 +7,83 @@ import type {
   RecentAttendanceRecord,
   RoutineEntry,
   SessionDetails,
-} from '../types'
+} from "../types";
 
 export const api = {
   profiles: {
-    current: makeFunctionReference<'query', Record<string, never>, CurrentUserResult | null>(
-      'profiles:current',
-    ),
+    current: makeFunctionReference<
+      "query",
+      Record<string, never>,
+      CurrentUserResult | null
+    >("profiles:current"),
     completeProfile: makeFunctionReference<
-      'mutation',
+      "mutation",
       {
-        fullName: string
-        studentId: string
-        batch: string
-        section: string
+        fullName: string;
+        batch: string;
+        section: string;
       },
       Profile
-    >('profiles:completeProfile'),
+    >("profiles:completeProfile"),
     inviteCr: makeFunctionReference<
-      'mutation',
+      "mutation",
       { email: string; batch: string; section: string },
       { ok: true }
-    >('profiles:inviteCr'),
-    listSectionPeople: makeFunctionReference<'query', Record<string, never>, Profile[]>(
-      'profiles:listSectionPeople',
-    ),
+    >("profiles:inviteCr"),
+    listSectionPeople: makeFunctionReference<
+      "query",
+      Record<string, never>,
+      Profile[]
+    >("profiles:listSectionPeople"),
   },
   attendance: {
     openSession: makeFunctionReference<
-      'mutation',
+      "mutation",
       {
-        routine: Omit<RoutineEntry, 'batchLabel' | 'slot'>
-        durationMinutes: number
+        routine: Omit<RoutineEntry, "batchLabel" | "slot">;
+        durationMinutes: number;
       },
       AttendanceSession
-    >('attendance:openSession'),
-    activeForMe: makeFunctionReference<'query', Record<string, never>, AttendanceSession[]>(
-      'attendance:activeForMe',
-    ),
+    >("attendance:openSession"),
+    activeForMe: makeFunctionReference<
+      "query",
+      Record<string, never>,
+      AttendanceSession[]
+    >("attendance:activeForMe"),
     submit: makeFunctionReference<
-      'mutation',
+      "mutation",
       { sessionId: string },
       AttendanceRecord
-    >('attendance:submit'),
+    >("attendance:submit"),
     myRecentRecords: makeFunctionReference<
-      'query',
+      "query",
       { limit?: number },
       RecentAttendanceRecord[]
-    >('attendance:myRecentRecords'),
+    >("attendance:myRecentRecords"),
     sessionsForCr: makeFunctionReference<
-      'query',
+      "query",
       { limit?: number },
       AttendanceSession[]
-    >('attendance:sessionsForCr'),
+    >("attendance:sessionsForCr"),
     sessionDetails: makeFunctionReference<
-      'query',
+      "query",
       { sessionId: string },
       SessionDetails
-    >('attendance:sessionDetails'),
+    >("attendance:sessionDetails"),
     closeSession: makeFunctionReference<
-      'mutation',
+      "mutation",
       { sessionId: string },
       { ok: true }
-    >('attendance:closeSession'),
+    >("attendance:closeSession"),
     manualMarkPresent: makeFunctionReference<
-      'mutation',
+      "mutation",
       {
-        sessionId: string
-        fullName: string
-        studentId: string
-        email: string
-        reason: string
+        sessionId: string;
+        fullName: string;
+        email: string;
+        reason: string;
       },
       AttendanceRecord
-    >('attendance:manualMarkPresent'),
+    >("attendance:manualMarkPresent"),
   },
-}
+};

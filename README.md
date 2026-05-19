@@ -1,12 +1,15 @@
 # UU Attendance PWA
 
-Attendance PWA for Uttara University Batch 67 sections. The app uses Vite React, Convex, Convex Auth with Google, PWA install support, existing Batch 67 routine data, and PDF attendance export.
+Attendance PWA for Uttara University Batch 67 sections. The app uses Vite React, Convex, Convex Auth password login, PWA install support, existing Batch 67 routine data, and PDF attendance export.
 
 ## Current Scope
 
-- University email restriction: `@uttara.ac.bd`
+- Manual email/password auth restricted to `@uttara.ac.bd`
 - Roles: `student` and `cr`
 - Batch/section profile: starts with Batch 67, Sections A-D from the existing routine data
+- Public signup always creates active student accounts
+- Student ID is derived from the part before `@` in each university email
+- First CR email is controlled by Convex env `INITIAL_CR_EMAILS`
 - CR opens an attendance window for a routine class
 - Students only see active sessions for their own batch and section
 - Backend validates attendance using server time
@@ -32,29 +35,16 @@ Convex will create a deployment and print a `VITE_CONVEX_URL`. Put that value in
 VITE_CONVEX_URL=https://your-deployment.convex.cloud
 ```
 
-Set the first CR email in Convex:
-
-```bash
-npx convex env set INITIAL_CR_EMAILS your-cr-email@uttara.ac.bd
-```
-
 Initialize Convex Auth keys:
 
 ```bash
 npx @convex-dev/auth
 ```
 
-Set Google OAuth credentials in Convex:
+Set the first CR email in Convex:
 
 ```bash
-npx convex env set AUTH_GOOGLE_ID your-google-client-id
-npx convex env set AUTH_GOOGLE_SECRET your-google-client-secret
-```
-
-Google OAuth callback URL:
-
-```txt
-https://your-convex-site-url.convex.site/api/auth/callback/google
+npx convex env set INITIAL_CR_EMAILS your-cr-email@uttara.ac.bd
 ```
 
 Then run the app:
@@ -62,6 +52,8 @@ Then run the app:
 ```bash
 npm run dev
 ```
+
+Students can create accounts with full name, `@uttara.ac.bd` email, 4+ character password, batch, and section. The stored student ID is derived from the email before `@`. OTP/email verification is intentionally not enabled yet.
 
 ## Routine Data
 

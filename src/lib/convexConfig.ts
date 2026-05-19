@@ -1,6 +1,6 @@
-import { ConvexReactClient } from 'convex/react'
+import { ConvexReactClient } from "convex/react";
 
-const convexUrl = import.meta.env.VITE_CONVEX_URL as string | undefined
+const convexUrl = import.meta.env.VITE_CONVEX_URL as string | undefined;
 
-export const convexClient = convexUrl ? new ConvexReactClient(convexUrl) : null
-export const hasConvexConfig = Boolean(convexClient)
+export const convexClient = convexUrl ? new ConvexReactClient(convexUrl) : null;
+export const hasConvexConfig = Boolean(convexClient);

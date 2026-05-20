@@ -45,6 +45,8 @@
   --shadow-tab-accent: 0 4px 12px rgba(15, 118, 110, 0.12);
   --ring-selected: 0 0 0 2px rgba(15, 118, 110, 0.14);
   --ring-focus: 0 0 0 3px rgba(15, 118, 110, 0.15);
+  --app-mobile-width: 480px;
+  --app-mobile-half: 240px;
   font-family:
     Inter,
     ui-sans-serif,
@@ -117,6 +119,7 @@ body {
   margin: 0;
   color: var(--color-text);
   background: var(--color-page);
+  overflow-x: hidden;
 }
 
 button,
@@ -134,5 +137,9 @@ button:disabled {
 }
 
 #root {
+  width: 100%;
+  max-width: var(--app-mobile-width);
   min-height: 100svh;
+  margin: 0 auto;
+  background: var(--color-surface-soft);
 }

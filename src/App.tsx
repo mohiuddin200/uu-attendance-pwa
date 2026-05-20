@@ -20,6 +20,7 @@ import {
   Plus,
   RefreshCw,
   ShieldCheck,
+  Smartphone,
   Square,
   Sun,
   Timer,
@@ -78,6 +79,12 @@ type SignupPayload = {
 
 type ThemeMode = "light" | "dark";
 type ToastKind = "success" | "error" | "info";
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
+
+const INSTALL_DISMISSED_KEY = "uu-attendance-install-dismissed";
 type ToastState = {
   id: number;
   kind: ToastKind;
@@ -93,25 +100,28 @@ function App({ backendReady }: { backendReady: boolean }) {
     [routineData],
   );
 
-  if (!backendReady) {
-    return (
-      <SetupPreview
-        entries={entries}
-        loading={loading}
-        error={error}
-        theme={theme}
-        onThemeToggle={toggleTheme}
-      />
-    );
-  }
-
-  return (
+  const screen = backendReady ? (
     <AuthenticatedApp
       entries={entries}
       routineLoading={loading}
       theme={theme}
       onThemeToggle={toggleTheme}
     />
+  ) : (
+    <SetupPreview
+      entries={entries}
+      loading={loading}
+      error={error}
+      theme={theme}
+      onThemeToggle={toggleTheme}
+    />
+  );
+
+  return (
+    <>
+      {screen}
+      <PwaInstallPrompt />
+    </>
   );
 }
 
@@ -1097,9 +1107,7 @@ function Onboarding({
     <div className="auth-shell">
       <div className="auth-panel wide">
         <div className="auth-panel-top">
-          <div className="brand-mark">
-            <CalendarCheck size={28} />
-          </div>
+          <LogoMark />
           <ThemeToggle theme={theme} onToggle={onThemeToggle} />
         </div>
         <h1>Complete Profile</h1>
@@ -1226,9 +1234,7 @@ function SignInScreen({
       <div className="auth-panel auth-card">
         <div className="auth-header">
           <div className="auth-topline">
-            <div className="brand-mark">
-              <CalendarCheck size={26} />
-            </div>
+            <LogoMark />
             <ThemeToggle theme={theme} onToggle={onThemeToggle} />
           </div>
           <div className="auth-heading">
@@ -1487,9 +1493,7 @@ function SetupPreview({
     <div className="auth-shell setup">
       <div className="auth-panel wide">
         <div className="auth-panel-top">
-          <div className="brand-mark">
-            <CalendarCheck size={28} />
-          </div>
+          <LogoMark />
           <ThemeToggle theme={theme} onToggle={onThemeToggle} />
         </div>
         <h1>UU Attendance</h1>
@@ -1549,9 +1553,7 @@ function AppHeader({
   return (
     <header className="app-header">
       <div className="app-title">
-        <div className="brand-mark small">
-          <CalendarCheck size={20} />
-        </div>
+        <LogoMark small />
         <strong>UU Attendance</strong>
       </div>
       <div className="header-actions">
@@ -1721,6 +1723,14 @@ function RosterSummary({ roster }: { roster: Profile[] | undefined }) {
   );
 }
 
+function LogoMark({ small = false }: { small?: boolean }) {
+  return (
+    <div className={small ? "brand-mark app-logo-mark small" : "brand-mark app-logo-mark"}>
+      <img src="/app-logo.svg" alt="" aria-hidden="true" />
+    </div>
+  );
+}
+
 function ThemeToggle({
   theme,
   onToggle,
@@ -1799,6 +1809,112 @@ function AppToast({
   );
 }
 
+function PwaInstallPrompt() {
+  const [promptEvent, setPromptEvent] =
+    useState<BeforeInstallPromptEvent | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [iosInstall, setIosInstall] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(INSTALL_DISMISSED_KEY) === "true";
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || dismissed) return;
+
+    const mobileQuery = window.matchMedia("(max-width: 720px), (pointer: coarse)");
+
+    function syncVisibility() {
+      const mobile = mobileQuery.matches;
+      const standalone = isStandalonePwa();
+      const ios = isAppleMobileDevice();
+
+      setIosInstall(ios);
+      setVisible(!standalone && mobile && (ios || promptEvent !== null));
+    }
+
+    syncVisibility();
+    mobileQuery.addEventListener("change", syncVisibility);
+
+    return () => mobileQuery.removeEventListener("change", syncVisibility);
+  }, [dismissed, promptEvent]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    function handleBeforeInstallPrompt(event: Event) {
+      event.preventDefault();
+      setPromptEvent(event as BeforeInstallPromptEvent);
+    }
+
+    function handleInstalled() {
+      setPromptEvent(null);
+      setVisible(false);
+      window.localStorage.setItem(INSTALL_DISMISSED_KEY, "true");
+      setDismissed(true);
+    }
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleInstalled);
+
+    return () => {
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt,
+      );
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
+  }, []);
+
+  async function handleInstall() {
+    if (!promptEvent) return;
+
+    await promptEvent.prompt();
+    await promptEvent.userChoice.catch(() => null);
+    setPromptEvent(null);
+    setVisible(false);
+  }
+
+  function handleDismiss() {
+    setVisible(false);
+    setDismissed(true);
+    window.localStorage.setItem(INSTALL_DISMISSED_KEY, "true");
+  }
+
+  if (!visible) return null;
+
+  return (
+    <aside className="install-prompt" aria-label="Install app">
+      <span className="install-prompt-icon">
+        <Smartphone size={18} />
+      </span>
+      <div className="install-prompt-copy">
+        <strong>Install UU Attendance</strong>
+        <p>
+          {iosInstall
+            ? "Tap Share, then Add to Home Screen."
+            : "Save it to your phone for faster attendance."}
+        </p>
+      </div>
+      {promptEvent ? (
+        <button className="install-action" type="button" onClick={handleInstall}>
+          <Download size={15} /> Install
+        </button>
+      ) : (
+        <span className="install-hint">Share &gt; Add</span>
+      )}
+      <button
+        className="toast-close install-close"
+        type="button"
+        onClick={handleDismiss}
+        aria-label="Dismiss install prompt"
+      >
+        <X size={14} />
+      </button>
+    </aside>
+  );
+}
+
 function InlineNotice({ text }: { text: string }) {
   return (
     <div className="notice">
@@ -1823,6 +1939,25 @@ function FullPageStatus({ label }: { label: string }) {
       </p>
     </div>
   );
+}
+
+function isStandalonePwa() {
+  const standaloneNavigator = window.navigator as Navigator & {
+    standalone?: boolean;
+  };
+
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    standaloneNavigator.standalone === true
+  );
+}
+
+function isAppleMobileDevice() {
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  const iPadOS =
+    userAgent.includes("macintosh") && window.navigator.maxTouchPoints > 1;
+
+  return /iphone|ipad|ipod/.test(userAgent) || iPadOS;
 }
 
 function useThemeMode() {

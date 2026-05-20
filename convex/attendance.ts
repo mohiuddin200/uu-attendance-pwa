@@ -7,8 +7,12 @@ import {
   type QueryCtx,
   query,
 } from "./_generated/server";
-
-const UNIVERSITY_DOMAIN = "uttara.ac.bd";
+import {
+  UNIVERSITY_DOMAIN,
+  isUniversityEmail,
+  normalizeEmail,
+  studentIdFromEmail,
+} from "./lib/appRules";
 
 type AppCtx = QueryCtx | MutationCtx;
 type ProfileRole = "student" | "cr";
@@ -22,25 +26,6 @@ type ActiveProfile = {
   role: ProfileRole;
   status: "active" | "blocked";
 };
-
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function isUniversityEmail(email: string) {
-  return normalizeEmail(email).endsWith(`@${UNIVERSITY_DOMAIN}`);
-}
-
-function studentIdFromEmail(email: string) {
-  const studentId = normalizeEmail(email).split("@")[0] ?? "";
-  if (!studentId) {
-    throw new Error("Education email must include the student ID before @.");
-  }
-  if (!/^\d+$/.test(studentId)) {
-    throw new Error("Education email must start with the numeric student ID.");
-  }
-  return studentId;
-}
 
 async function profileByUserId(ctx: AppCtx, userId: Id<"users">) {
   return await ctx.db
@@ -383,7 +368,7 @@ export const manualMarkPresent = mutation({
       );
     }
 
-    const studentId = studentIdFromEmail(email);
+    const studentId = studentIdFromEmail(email, "the");
     const reason = args.reason.trim();
     if (reason.length < 4) {
       throw new Error("Add a clear reason for manual attendance.");

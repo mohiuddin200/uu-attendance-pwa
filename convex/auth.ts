@@ -1,35 +1,13 @@
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
-
-const UNIVERSITY_DOMAIN = "uttara.ac.bd";
-const SUPPORTED_BATCHES = ["67"];
-const SUPPORTED_SECTIONS = ["A", "B", "C", "D"];
-
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function isUniversityEmail(email: string) {
-  return normalizeEmail(email).endsWith(`@${UNIVERSITY_DOMAIN}`);
-}
-
-function studentIdFromEmail(email: string) {
-  const studentId = normalizeEmail(email).split("@")[0] ?? "";
-  if (!studentId) {
-    throw new Error("Education email must include your student ID before @.");
-  }
-  if (!/^\d+$/.test(studentId)) {
-    throw new Error("Education email must start with your numeric student ID.");
-  }
-  return studentId;
-}
-
-function parseInitialCrEmails() {
-  return (process.env.INITIAL_CR_EMAILS ?? "")
-    .split(",")
-    .map((email) => normalizeEmail(email))
-    .filter(Boolean);
-}
+import {
+  UNIVERSITY_DOMAIN,
+  assertSupportedSection,
+  isUniversityEmail,
+  normalizeEmail,
+  parseInitialCrEmails,
+  studentIdFromEmail,
+} from "./lib/appRules";
 
 function stringParam(params: Record<string, unknown>, key: string) {
   const value = params[key];
@@ -46,15 +24,6 @@ function requiredString(
     throw new Error(`${label} is required.`);
   }
   return value;
-}
-
-function assertSupportedSection(batch: string, section: string) {
-  if (!SUPPORTED_BATCHES.includes(batch)) {
-    throw new Error(`Batch ${batch} is not enabled yet.`);
-  }
-  if (!SUPPORTED_SECTIONS.includes(section)) {
-    throw new Error(`Section ${section} is not enabled yet.`);
-  }
 }
 
 function profileFromParams(params: Record<string, unknown>) {

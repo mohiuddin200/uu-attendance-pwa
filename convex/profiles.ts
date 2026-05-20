@@ -7,47 +7,16 @@ import {
   type QueryCtx,
   query,
 } from "./_generated/server";
-
-const UNIVERSITY_DOMAIN = "uttara.ac.bd";
-const SUPPORTED_BATCHES = ["67"];
-const SUPPORTED_SECTIONS = ["A", "B", "C", "D"];
+import {
+  UNIVERSITY_DOMAIN,
+  assertSupportedSection,
+  isUniversityEmail,
+  normalizeEmail,
+  parseInitialCrEmails,
+  studentIdFromEmail,
+} from "./lib/appRules";
 
 type AppCtx = QueryCtx | MutationCtx;
-
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function isUniversityEmail(email: string) {
-  return normalizeEmail(email).endsWith(`@${UNIVERSITY_DOMAIN}`);
-}
-
-function studentIdFromEmail(email: string) {
-  const studentId = normalizeEmail(email).split("@")[0] ?? "";
-  if (!studentId) {
-    throw new Error("Education email must include your student ID before @.");
-  }
-  if (!/^\d+$/.test(studentId)) {
-    throw new Error("Education email must start with your numeric student ID.");
-  }
-  return studentId;
-}
-
-function parseInitialCrEmails() {
-  return (process.env.INITIAL_CR_EMAILS ?? "")
-    .split(",")
-    .map((email) => normalizeEmail(email))
-    .filter(Boolean);
-}
-
-function assertSupportedSection(batch: string, section: string) {
-  if (!SUPPORTED_BATCHES.includes(batch)) {
-    throw new Error(`Batch ${batch} is not enabled yet.`);
-  }
-  if (!SUPPORTED_SECTIONS.includes(section)) {
-    throw new Error(`Section ${section} is not enabled yet.`);
-  }
-}
 
 async function signedInUser(ctx: AppCtx) {
   const userId = await getAuthUserId(ctx);

@@ -274,7 +274,7 @@ export const listSectionPeople = query({
     const { userId } = await signedInUser(ctx);
     const actor = await profileByUserId(ctx, userId);
     if (!actor || actor.role !== "cr") {
-      throw new Error("Only CRs can view the section roster.");
+      throw new Error("Only CRs can view section people.");
     }
 
     return await ctx.db

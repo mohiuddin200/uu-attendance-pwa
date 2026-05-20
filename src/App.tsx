@@ -1698,24 +1698,34 @@ function SectionTitle({
 
 function RosterSummary({ roster }: { roster: Profile[] | undefined }) {
   if (roster === undefined) {
-    return <PanelStatus label="Loading roster" />;
+    return <PanelStatus label="Loading people" />;
   }
+
+  const people = [...roster].sort((a, b) => {
+    if (a.role !== b.role) return a.role === "cr" ? -1 : 1;
+    return a.fullName.localeCompare(b.fullName);
+  });
+  const countLabel =
+    roster.length === 1 ? "1 person" : `${roster.length} people`;
 
   return (
     <section className="roster-summary">
       <SectionTitle
         icon={<Users size={18} />}
-        title="Roster"
-        subtitle={`${roster.length} profiles`}
+        title="Section People"
+        subtitle={`${countLabel} - CR view only`}
       />
       <div className="roster-list">
-        {roster.slice(0, 6).map((person) => (
-          <div key={person._id}>
-            <span>{initials(person.fullName)}</span>
-            <div>
+        {people.map((person) => (
+          <div key={person._id} className="roster-person">
+            <span className="roster-avatar">{initials(person.fullName)}</span>
+            <div className="roster-person-main">
               <strong>{person.fullName}</strong>
-              <small>{person.studentId}</small>
+              <small>ID {person.studentId}</small>
             </div>
+            <small className={`person-role ${person.role}`}>
+              {person.role === "cr" ? "CR" : "Student"}
+            </small>
           </div>
         ))}
       </div>

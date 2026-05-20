@@ -207,7 +207,7 @@
 }
 
 .profile-avatar,
-.roster-list > div > span {
+.roster-avatar {
   width: 36px;
   height: 36px;
   display: grid;
@@ -696,6 +696,32 @@
 .session-list button > span,
 .roster-list > div > div {
   min-width: 0;
+}
+
+.roster-person {
+  justify-content: space-between;
+}
+
+.roster-person-main {
+  flex: 1 1 auto;
+}
+
+.person-role {
+  flex: 0 0 auto;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 9px;
+  color: var(--color-muted-strong);
+  background: var(--color-surface-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.person-role.cr {
+  color: var(--color-accent-ink);
+  background: var(--color-accent-soft);
 }
 
 .routine-row strong,

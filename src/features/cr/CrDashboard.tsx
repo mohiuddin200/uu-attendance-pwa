@@ -4,6 +4,7 @@ import {
   Building2,
   Clock3,
   Download,
+  Lock,
   Play,
   Plus,
   Search,
@@ -13,7 +14,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useMemo, useState } from "react";
 import { AppToast } from "../../components/AppToast";
 import {
   BottomNav,
@@ -253,6 +254,27 @@ export function CrDashboard({
     }
   }
 
+  const selectedSessionContent = (
+    <>
+      <SessionDetailsPanel
+        details={details}
+        now={now}
+        busy={busy}
+        pdfBusy={pdfBusy}
+        onClose={handleClose}
+        onDownload={handleDownload}
+      />
+
+      <ManualAddForm
+        details={details}
+        form={manualForm}
+        busy={busy === "manual"}
+        onChange={setManualForm}
+        onSubmit={handleManualAdd}
+      />
+    </>
+  );
+
   return (
     <>
       <div className="cr-layout" data-active-tab={view}>
@@ -341,29 +363,13 @@ export function CrDashboard({
               selectedSessionId={activeSessionId}
               now={now}
               onSelect={setSelectedSessionId}
+              selectedContent={selectedSessionContent}
             />
             <SessionLoadMore
               status={sessionsStatus}
               onLoadMore={() =>
                 setSessionLimit((current) => current + SESSION_PAGE_SIZE)
               }
-            />
-
-            <SessionDetailsPanel
-              details={details}
-              now={now}
-              busy={busy}
-              pdfBusy={pdfBusy}
-              onClose={handleClose}
-              onDownload={handleDownload}
-            />
-
-            <ManualAddForm
-              details={details}
-              form={manualForm}
-              busy={busy === "manual"}
-              onChange={setManualForm}
-              onSubmit={handleManualAdd}
             />
           </div>
 
@@ -471,7 +477,7 @@ function SessionDetailsPanel({
   onDownload: () => void;
 }) {
   if (details === undefined) {
-    return <PanelStatus label="Select a session" />;
+    return <PanelStatus label="Loading session" />;
   }
 
   const { session, records } = details;
@@ -521,7 +527,7 @@ function SessionDetailsPanel({
           disabled={!isOpen || busy === session._id}
           onClick={() => onClose(session._id)}
         >
-          <Square size={16} /> Close
+          <Lock size={16} /> Close
         </button>
       </div>
       <RecordTable records={records} />
@@ -545,12 +551,21 @@ function ManualAddForm({
   if (!details) return null;
 
   return (
-    <form className="compact-form" onSubmit={onSubmit}>
-      <SectionTitle
-        icon={<Plus size={18} />}
-        title="Manual Add"
-        subtitle="Reason required"
-      />
+    <form className="compact-form manual-add-form" onSubmit={onSubmit}>
+      <div className="manual-add-header">
+        <SectionTitle
+          icon={<Plus size={18} />}
+          title="Manual Add"
+          subtitle="Reason required"
+        />
+        <button
+          className="primary-action manual-add-submit"
+          type="submit"
+          disabled={busy}
+        >
+          <Plus size={16} /> {busy ? "Adding" : "Add Present"}
+        </button>
+      </div>
       <div className="form-row two">
         <input
           value={form.fullName}
@@ -574,9 +589,6 @@ function ManualAddForm({
         placeholder="Reason"
         required
       />
-      <button className="secondary-action full" type="submit" disabled={busy}>
-        <Plus size={16} /> {busy ? "Adding" : "Add Present"}
-      </button>
     </form>
   );
 }
@@ -632,6 +644,7 @@ function SessionList({
   selectedSessionId,
   now,
   onSelect,
+  selectedContent,
 }: {
   sessions: AttendanceSession[];
   hasAnySessions: boolean;
@@ -639,6 +652,7 @@ function SessionList({
   selectedSessionId: string | null;
   now: number;
   onSelect: (id: string) => void;
+  selectedContent: ReactNode;
 }) {
   if (loading) {
     return <PanelStatus label="Loading sessions" />;
@@ -664,6 +678,7 @@ function SessionList({
           selectedSessionId={selectedSessionId}
           now={now}
           onSelect={onSelect}
+          selectedContent={selectedContent}
         />
       ) : null}
       {recentSessions.length > 0 ? (
@@ -673,6 +688,7 @@ function SessionList({
           selectedSessionId={selectedSessionId}
           now={now}
           onSelect={onSelect}
+          selectedContent={selectedContent}
         />
       ) : null}
     </div>
@@ -685,12 +701,14 @@ function SessionGroup({
   selectedSessionId,
   now,
   onSelect,
+  selectedContent,
 }: {
   title: string;
   sessions: AttendanceSession[];
   selectedSessionId: string | null;
   now: number;
   onSelect: (id: string) => void;
+  selectedContent: ReactNode;
 }) {
   return (
     <section className="session-group">
@@ -699,15 +717,25 @@ function SessionGroup({
         <small>{sessions.length}</small>
       </div>
       <div className="session-list">
-        {sessions.map((session) => (
-          <SessionRow
-            key={session._id}
-            session={session}
-            selected={selectedSessionId === session._id}
-            now={now}
-            onSelect={() => onSelect(session._id)}
-          />
-        ))}
+        {sessions.map((session) => {
+          const selected = selectedSessionId === session._id;
+
+          return (
+            <div className="session-list-item" key={session._id}>
+              <SessionRow
+                session={session}
+                selected={selected}
+                now={now}
+                onSelect={() => onSelect(session._id)}
+              />
+              {selected ? (
+                <div className="session-selection-panel">
+                  {selectedContent}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -730,6 +758,7 @@ function SessionRow({
     <button
       className={selected ? "selected" : ""}
       type="button"
+      aria-expanded={selected}
       onClick={onSelect}
     >
       <span>

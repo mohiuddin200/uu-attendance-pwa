@@ -5,6 +5,14 @@ import { initials } from "../lib/text";
 import type { Profile } from "../types";
 import { LogoMark, ThemeToggle } from "./ui";
 
+function roleLabel(role: Profile["role"]) {
+  return role === "cr" ? "CR" : "Student";
+}
+
+function emailPrefix(profile: Profile) {
+  return profile.studentId || profile.email.split("@")[0] || profile.email;
+}
+
 export function AppHeader({
   profile,
   onSignOut,
@@ -17,6 +25,8 @@ export function AppHeader({
   onThemeToggle: () => void;
 }) {
   const [showName, setShowName] = useState(false);
+  const profileRole = roleLabel(profile.role);
+  const profileEmailPrefix = emailPrefix(profile);
 
   useEffect(() => {
     if (!showName) return;
@@ -58,13 +68,16 @@ export function AppHeader({
             {showName ? (
               <div className="profile-tooltip" role="tooltip">
                 <strong>{profile.fullName}</strong>
-                <small>{profile.role === "cr" ? "CR" : "Student"}</small>
+                <small className="profile-email-prefix">
+                  ID {profileEmailPrefix}
+                </small>
+                <small>{profileRole}</small>
               </div>
             ) : null}
           </div>
           <div className="chip-text">
             <strong>{profile.fullName}</strong>
-            <small>{profile.role === "cr" ? "CR" : "Student"}</small>
+            <small>{profileRole}</small>
           </div>
           <button
             className="icon-button"

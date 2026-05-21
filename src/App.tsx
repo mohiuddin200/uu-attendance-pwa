@@ -87,7 +87,7 @@ function AuthenticatedApp({
         window.location.href = result.redirect.toString();
       }
     } catch (error) {
-      setAuthError(authErrorMessage(error));
+      setAuthError(authErrorMessage(error, "login"));
     }
   }
 
@@ -106,7 +106,7 @@ function AuthenticatedApp({
         window.location.href = result.redirect.toString();
       }
     } catch (error) {
-      setAuthError(authErrorMessage(error));
+      setAuthError(authErrorMessage(error, "signup"));
     }
   }
 

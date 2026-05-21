@@ -31,14 +31,23 @@ export function createErrorToast(
 }
 
 export function errorMessage(error: unknown) {
-  const raw = error instanceof Error ? error.message : String(error);
+  const raw = rawErrorMessage(error);
   return cleanErrorMessage(raw);
 }
 
-export function authErrorMessage(error: unknown) {
-  const message = errorMessage(error);
+export function authErrorMessage(
+  error: unknown,
+  flow: "login" | "signup" = "login",
+) {
+  const raw = rawErrorMessage(error);
+  const message = cleanErrorMessage(raw);
 
-  if (/^(invalid credentials|invalidaccountid|invalidsecret)\.?$/i.test(message)) {
+  if (
+    /^(invalid credentials|invalidaccountid|invalidsecret)\.?$/i.test(
+      message,
+    ) ||
+    (flow === "login" && isHiddenAuthServerError(raw, message))
+  ) {
     return "Incorrect email or password. Please check your credentials and try again.";
   }
 
@@ -50,7 +59,25 @@ export function authErrorMessage(error: unknown) {
     return "An account already exists for this email. Please sign in instead.";
   }
 
+  if (flow === "signup" && isHiddenAuthServerError(raw, message)) {
+    return "Could not create account. Please check your details and try again.";
+  }
+
   return message;
+}
+
+function rawErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isHiddenAuthServerError(raw: string, message: string) {
+  return (
+    /auth:signIn/i.test(raw) &&
+    /(?:Server Error|Called by client)/i.test(raw) &&
+    /^(Something went wrong\. Please try again\.|Server Error|Called by client)$/i.test(
+      message,
+    )
+  );
 }
 
 function cleanErrorMessage(raw: string) {
@@ -76,7 +103,7 @@ function cleanErrorMessage(raw: string) {
     .replace(/^Server Error\s*/, "")
     .replace(/^Uncaught (?:\w+Error|Error):\s*/, "")
     .replace(/^Error:\s*/, "")
-    .replace(/\s+Called by client\s*$/i, "")
+    .replace(/\s*Called by client\s*$/i, "")
     .trim();
 
   return message || "Something went wrong. Please try again.";

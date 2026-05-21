@@ -11,6 +11,7 @@
 import type * as attendance from "../attendance.js";
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
+import type * as lib_appRules from "../lib/appRules.js";
 import type * as profiles from "../profiles.js";
 
 import type {
@@ -23,6 +24,7 @@ declare const fullApi: ApiFromModules<{
   attendance: typeof attendance;
   auth: typeof auth;
   http: typeof http;
+  "lib/appRules": typeof lib_appRules;
   profiles: typeof profiles;
 }>;
 

@@ -18,7 +18,7 @@ import { useRoutineData } from "./hooks/useRoutineData";
 import { useThemeMode } from "./hooks/useThemeMode";
 import { api } from "./lib/api";
 import type { LoginPayload, SignupPayload, ThemeMode } from "./lib/appTypes";
-import { errorMessage } from "./lib/errors";
+import { authErrorMessage } from "./lib/errors";
 import { normalizeRoutineEntries } from "./lib/routine";
 import type { RoutineEntry } from "./types";
 
@@ -87,7 +87,7 @@ function AuthenticatedApp({
         window.location.href = result.redirect.toString();
       }
     } catch (error) {
-      setAuthError(errorMessage(error));
+      setAuthError(authErrorMessage(error));
     }
   }
 
@@ -106,7 +106,7 @@ function AuthenticatedApp({
         window.location.href = result.redirect.toString();
       }
     } catch (error) {
-      setAuthError(errorMessage(error));
+      setAuthError(authErrorMessage(error));
     }
   }
 

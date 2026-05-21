@@ -35,10 +35,28 @@ export function errorMessage(error: unknown) {
   return cleanErrorMessage(raw);
 }
 
+export function authErrorMessage(error: unknown) {
+  const message = errorMessage(error);
+
+  if (/^(invalid credentials|invalidaccountid|invalidsecret)\.?$/i.test(message)) {
+    return "Incorrect email or password. Please check your credentials and try again.";
+  }
+
+  if (/^toomanyfailedattempts\.?$/i.test(message)) {
+    return "Too many failed sign-in attempts. Please wait a few minutes and try again.";
+  }
+
+  if (/^account .+ already exists\.?$/i.test(message)) {
+    return "An account already exists for this email. Please sign in instead.";
+  }
+
+  return message;
+}
+
 function cleanErrorMessage(raw: string) {
   let message = raw.replace(/\s+/g, " ").trim();
   const uncaught = message.match(
-    /Uncaught Error:\s*(.*?)(?:\s+at\s+\w+|\s+Called by client|$)/,
+    /Uncaught (?:\w+Error|Error):\s*(.*?)(?:\s+at\s+\w+|\s+Called by client|$)/,
   );
 
   if (uncaught?.[1]) {
@@ -56,8 +74,9 @@ function cleanErrorMessage(raw: string) {
     .replace(/^\[CONVEX[^\]]+\]\s*/, "")
     .replace(/^\[Request ID:[^\]]+\]\s*/, "")
     .replace(/^Server Error\s*/, "")
-    .replace(/^Uncaught Error:\s*/, "")
+    .replace(/^Uncaught (?:\w+Error|Error):\s*/, "")
     .replace(/^Error:\s*/, "")
+    .replace(/\s+Called by client\s*$/i, "")
     .trim();
 
   return message || "Something went wrong. Please try again.";
